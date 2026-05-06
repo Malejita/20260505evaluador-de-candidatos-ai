@@ -1,0 +1,694 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  FileText, 
+  Upload, 
+  Search, 
+  CheckCircle, 
+  AlertCircle, 
+  X, 
+  Loader2, 
+  ChevronRight,
+  TrendingUp,
+  Award,
+  BookOpen,
+  Briefcase,
+  Users,
+  Star
+} from 'lucide-react';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import ReactMarkdown from 'react-markdown';
+
+import { parseFile } from './lib/fileParser';
+import { 
+  extractCriteriaFromJD, 
+  evaluateCandidate, 
+  generateExecutiveSummary,
+  generateInterviewQuestions,
+  type JDCriteria, 
+  type CandidateEvaluation 
+} from './services/geminiService';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+export default function App() {
+  // State
+  const [jobTitle, setJobTitle] = useState('');
+  const [jdRaw, setJdRaw] = useState('');
+  const [criteria, setCriteria] = useState<JDCriteria>({
+    experience: '',
+    skills: '',
+    education: '',
+    achievements: ''
+  });
+  const [isExtractingJD, setIsExtractingJD] = useState(false);
+  const [hasExtracted, setHasExtracted] = useState(false);
+  
+  const [evaluations, setEvaluations] = useState<CandidateEvaluation[]>([]);
+  const [processedFileNames, setProcessedFileNames] = useState<Set<string>>(new Set());
+  const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [executiveSummary, setExecutiveSummary] = useState('');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [currentView, setCurrentView] = useState<'evaluation' | 'interview'>('evaluation');
+  const [interviewQuestions, setInterviewQuestions] = useState<Record<string, string[]>>({});
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
+
+  // Handlers
+  const handleExtractJD = async () => {
+    if (!jdRaw.trim()) {
+      setError('Por favor ingrese la descripción del cargo.');
+      return;
+    }
+    setIsExtractingJD(true);
+    setError(null);
+    try {
+      const extracted = await extractCriteriaFromJD(jdRaw);
+      setCriteria(extracted);
+      setHasExtracted(true);
+    } catch (err: any) {
+      setError('Error al extraer criterios: ' + err.message);
+    } finally {
+      setIsExtractingJD(false);
+    }
+  };
+
+  const updateCriteriaField = (field: keyof JDCriteria, value: string) => {
+    setCriteria(prev => ({ ...prev, [field]: value }));
+  };
+
+  const toggleCandidateSelection = (name: string) => {
+    const newSelected = new Set(selectedCandidates);
+    if (newSelected.has(name)) {
+      newSelected.delete(name);
+    } else {
+      newSelected.add(name);
+    }
+    setSelectedCandidates(newSelected);
+  };
+
+  const handleGoToInterview = async () => {
+    if (selectedCandidates.size === 0) {
+      setError('Debe seleccionar al menos un candidato para la siguiente fase.');
+      return;
+    }
+
+    setIsGeneratingQuestions(true);
+    setError(null);
+    try {
+      const selectedEvals = evaluations.filter(ev => selectedCandidates.has(ev.name));
+      const questionsMap: Record<string, string[]> = { ...interviewQuestions };
+      
+      for (const candidate of selectedEvals) {
+        if (!questionsMap[candidate.name]) {
+          const questions = await generateInterviewQuestions(candidate, jdRaw);
+          questionsMap[candidate.name] = questions;
+        }
+      }
+      
+      setInterviewQuestions(questionsMap);
+      setCurrentView('interview');
+      window.scrollTo(0, 0);
+    } catch (err: any) {
+      setError('Error al generar preguntas de entrevista: ' + err.message);
+    } finally {
+      setIsGeneratingQuestions(false);
+    }
+  };
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    if (!hasExtracted) {
+      setError('Primero debe extraer y verificar los criterios de la descripción del cargo.');
+      return;
+    }
+
+    const incomingFiles = Array.from(files);
+    const newFiles = incomingFiles.filter(f => !processedFileNames.has(f.name));
+    
+    if (newFiles.length === 0) {
+      setError('Los archivos seleccionados ya han sido procesados.');
+      return;
+    }
+
+    if (newFiles.length < incomingFiles.length) {
+      setError('Se omitieron archivos duplicados.');
+    } else {
+      setError(null);
+    }
+
+    setIsEvaluating(true);
+    const newEvaluations: CandidateEvaluation[] = [];
+    const newlyProcessedNames = new Set(processedFileNames);
+
+    try {
+      for (const file of newFiles) {
+        try {
+          const text = await parseFile(file);
+          const evaluation = await evaluateCandidate(text, criteria, jobTitle);
+          newEvaluations.push(evaluation);
+          newlyProcessedNames.add(file.name);
+        } catch (fileErr: any) {
+          console.error(`Error processing file ${file.name}:`, fileErr);
+          setError(`Error procesando ${file.name}: ${fileErr.message}`);
+        }
+      }
+      setEvaluations(prev => [...prev, ...newEvaluations]);
+      setProcessedFileNames(newlyProcessedNames);
+    } catch (err: any) {
+      setError('Error general al evaluar candidatos: ' + err.message);
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleFileUpload(e.dataTransfer.files);
+  };
+
+  const generateSummary = async () => {
+    if (evaluations.length === 0) return;
+    setIsGeneratingSummary(true);
+    try {
+      const summary = await generateExecutiveSummary(evaluations);
+      setExecutiveSummary(summary);
+    } catch (err: any) {
+      setError('Error al generar resumen ejecutivo.');
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
+  const clearResults = () => {
+    setEvaluations([]);
+    setExecutiveSummary('');
+    setProcessedFileNames(new Set());
+    setError(null);
+  };
+
+  const sortedEvaluations = [...evaluations].sort((a, b) => b.score - a.score);
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col h-screen overflow-hidden">
+      {/* Header */}
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
+            <Briefcase className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+              Sistema Reclutamiento Inteligente 
+              <span className="text-blue-600 font-medium text-[10px] px-2 py-0.5 bg-blue-50 rounded-full border border-blue-100 uppercase">v1.0 Recruiter AI</span>
+            </h1>
+          </div>
+        </div>
+        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+          Módulo de Reclutamiento Activo
+        </div>
+      </header>
+
+      <main className="flex-1 flex overflow-hidden">
+        {currentView === 'evaluation' ? (
+          <>
+            {/* Sidebar: Job Description */}
+        <aside className="w-[40%] bg-white border-r border-slate-200 flex flex-col overflow-hidden shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 shrink-0">
+          {/* Nombre del Cargo */}
+          <div className="p-4 border-b border-slate-100">
+            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-wider">Nombre del Cargo</label>
+            <input 
+              type="text" 
+              value={jobTitle}
+              onChange={(e) => setJobTitle(e.target.value)}
+              placeholder="Ej: Senior Web Developer"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium transition-all"
+            />
+          </div>
+
+          {/* Perfil del Candidato */}
+          <div className="p-4 border-b border-slate-100 flex flex-col gap-3">
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Perfil del Candidato</label>
+              <textarea 
+                rows={4}
+                value={jdRaw}
+                onChange={(e) => setJdRaw(e.target.value)}
+                placeholder="Pegue aquí la descripción completa del cargo..."
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 leading-relaxed transition-all"
+              />
+            </div>
+            <button 
+              onClick={handleExtractJD}
+              disabled={isExtractingJD || !jdRaw.trim()}
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 text-white text-xs font-bold rounded flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md active:scale-[0.98]"
+            >
+              {isExtractingJD ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <>
+                  <span>Completar Criterios Siguiente Sección</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Criterios del cargo */}
+          <div className="flex-1 p-4 bg-slate-50/50 overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Criterios del Cargo</label>
+              {hasExtracted && (
+                <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 animate-pulse">
+                  <CheckCircle className="w-3 h-3" /> EXTRAÍDO
+                </span>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-1 gap-4">
+              <EditableField 
+                label="Experiencia Requerida" 
+                value={criteria.experience} 
+                onChange={(v) => updateCriteriaField('experience', v)}
+                placeholder="Años, áreas específicas..."
+              />
+              <EditableField 
+                label="Habilidades Técnicas" 
+                value={criteria.skills} 
+                onChange={(v) => updateCriteriaField('skills', v)}
+                placeholder="Softwares, lenguajes, herramientas..."
+              />
+              <EditableField 
+                label="Formación Académica" 
+                value={criteria.education} 
+                onChange={(v) => updateCriteriaField('education', v)}
+                placeholder="Títulos, certificaciones..."
+              />
+              <EditableField 
+                label="Logros o Competencias" 
+                value={criteria.achievements} 
+                onChange={(v) => updateCriteriaField('achievements', v)}
+                placeholder="Resultados esperados, soft skills..."
+              />
+            </div>
+
+            {!hasExtracted && !isExtractingJD && (
+              <div className="flex flex-col items-center justify-center py-6 text-slate-300 gap-2 border-2 border-dashed border-slate-200 rounded-lg bg-white/50">
+                <Search className="w-8 h-8 opacity-20" />
+                <p className="text-[9px] font-bold uppercase tracking-tighter">Ingrese perfil arriba para completar</p>
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <section className="flex-1 flex flex-col overflow-hidden bg-white">
+          {error && (
+            <div className="px-6 pt-4 shrink-0">
+              <div className="p-3 bg-red-50 border border-red-100 rounded text-red-600 text-[11px] font-medium flex items-center gap-2">
+                <AlertCircle className="w-3.5 h-3.5" />
+                {error}
+                <button onClick={() => setError(null)} className="ml-auto opacity-50 hover:opacity-100">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Action Header: Unified Add Button and Evaluation Results */}
+          <div className="px-6 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/30 shrink-0">
+            <div className="space-y-1">
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                <Users className="w-4 h-4 text-blue-600" />
+                Gestión de Candidatos
+              </h2>
+              {evaluations.length > 0 && (
+                <p className="text-[10px] text-slate-400 font-medium">{evaluations.length} perfiles evaluados hasta el momento</p>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                multiple 
+                onChange={(e) => handleFileUpload(e.target.files)}
+                className="hidden"
+                accept=".pdf,.docx,.txt"
+              />
+              <button
+                onClick={() => hasExtracted ? fileInputRef.current?.click() : setError('Configure los criterios primero')}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all shadow-sm",
+                  hasExtracted 
+                    ? "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md" 
+                    : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                )}
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Sumar Hojas de Vida
+              </button>
+              
+              {evaluations.length > 0 && (
+                <button 
+                  onClick={generateSummary}
+                  disabled={isGeneratingSummary}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+                >
+                  {isGeneratingSummary ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <TrendingUp className="w-3.5 h-3.5" />}
+                  Reporte Ejecutivo
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Content Body: SCROLLABLE AREA */}
+          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
+            {isEvaluating && (
+              <div className="mx-6 mt-4 flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-lg text-blue-700 animate-pulse">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">Analizando perfiles mediante IA...</span>
+              </div>
+            )}
+
+            {evaluations.length > 0 ? (
+              <div className="flex flex-col p-6 gap-6">
+                {/* Executive Summary Section */}
+                <AnimatePresence>
+                  {executiveSummary && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="shrink-0"
+                    >
+                      <div className="p-6 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-2xl text-white shadow-xl shadow-blue-200/50 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none transition-transform group-hover:scale-110">
+                          <Award className="w-24 h-24" />
+                        </div>
+                        <div className="relative z-10">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                                <Star className="w-4 h-4 text-yellow-300 fill-yellow-300" />
+                              </div>
+                              <h3 className="text-[11px] font-bold uppercase tracking-[0.3em] text-blue-50">Reporte Estratégico AI</h3>
+                            </div>
+                            <button 
+                               onClick={() => setExecutiveSummary('')}
+                               className="text-white/50 hover:text-white transition-colors"
+                            >
+                               <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          {/* Inner scroll container for summary if it gets too long */}
+                          <div className="max-h-[300px] overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-white/20 text-sm font-medium leading-relaxed prose prose-invert prose-sm max-w-none">
+                            <ReactMarkdown>{executiveSummary}</ReactMarkdown>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Table Section */}
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
+                  <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Escalafón de Candidatos</h3>
+                    <button 
+                      onClick={clearResults}
+                      className="text-[9px] font-bold text-rose-500 hover:text-rose-600 uppercase tracking-tighter transition-colors"
+                    >
+                      Reiniciar Evaluación
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-slate-50">
+                        <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          <th className="px-6 py-4 border-b border-slate-200 w-10 text-center">Fase</th>
+                          <th className="px-6 py-4 border-b border-slate-200">Candidato</th>
+                          <th className="px-6 py-4 border-b border-slate-200 text-center">Score</th>
+                          <th className="px-6 py-4 border-b border-slate-200">Recomendación</th>
+                          <th className="px-6 py-4 border-b border-slate-200">Fortaleza Principal</th>
+                          <th className="px-6 py-4 border-b border-slate-200">Brecha</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-xs">
+                        {sortedEvaluations.map((ev, i) => (
+                          <tr key={i} className="hover:bg-blue-50/20 border-b border-slate-100 group transition-colors">
+                            <td className="px-6 py-4 text-center">
+                              <input 
+                                type="checkbox"
+                                checked={selectedCandidates.has(ev.name)}
+                                onChange={() => toggleCandidateSelection(ev.name)}
+                                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-6 py-4 font-bold text-slate-800 text-sm">
+                              <div className="flex items-center gap-3">
+                                <span className={cn(
+                                  "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold",
+                                  i === 0 ? "bg-yellow-100 text-yellow-700 border border-yellow-200" : "bg-slate-100 text-slate-400"
+                                )}>
+                                  {i + 1}
+                                </span>
+                                {ev.name}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className={cn(
+                                "inline-flex items-center justify-center w-8 h-8 rounded-lg font-black text-sm",
+                                ev.score >= 8 ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
+                                ev.score >= 6 ? "bg-amber-50 text-amber-600 border border-amber-100" :
+                                "bg-rose-50 text-rose-600 border border-rose-100"
+                              )}>
+                                {ev.score}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={cn(
+                                "px-2.5 py-1 rounded font-bold uppercase text-[9px] border",
+                                ev.recommendation === 'Avanzar' ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                ev.recommendation === 'Considerar' ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                "bg-slate-100 text-slate-600 border-slate-200"
+                              )}>
+                                {ev.recommendation}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-slate-600 max-w-[200px]">
+                              <p className="line-clamp-2 leading-relaxed">{ev.strengths}</p>
+                            </td>
+                            <td className="px-6 py-4 text-slate-400 italic max-w-[200px]">
+                              <p className="line-clamp-2 leading-relaxed">{ev.gaps}</p>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {selectedCandidates.size > 0 && (
+                    <div className="p-6 bg-slate-50/50 border-t border-slate-100 flex justify-end">
+                      <button
+                        onClick={handleGoToInterview}
+                        disabled={isGeneratingQuestions}
+                        className="flex items-center gap-3 px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold uppercase tracking-[0.2em] shadow-xl shadow-emerald-200/50 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                      >
+                        {isGeneratingQuestions ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <ChevronRight className="w-5 h-5" />
+                        )}
+                        Pasar a Siguiente Fase ({selectedCandidates.size})
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-slate-200 p-12">
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-slate-50 border-2 border-dashed border-slate-100 rounded-[2.5rem] p-20 flex flex-col items-center gap-6"
+                >
+                  <div className="bg-white p-8 rounded-full shadow-2xl shadow-slate-200 relative group">
+                     <FileText className="w-20 h-20 text-slate-200 group-hover:text-blue-500 transition-colors" />
+                     <div className="absolute -bottom-1 -right-1 bg-blue-600 text-white p-3 rounded-full border-4 border-white shadow-lg animate-bounce">
+                        <Upload className="w-5 h-5" />
+                     </div>
+                  </div>
+                  <div className="text-center space-y-3">
+                    <p className="text-base font-bold text-slate-800 uppercase tracking-[0.2em]">Cargar Candidatos</p>
+                    <p className="text-xs text-slate-400 max-w-sm leading-relaxed font-medium">
+                      Configure el perfil a la izquierda y sume las hojas de vida (.pdf, .docx, .txt) para iniciar el análisis comparativo automática.
+                    </p>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </div>
+        </section>
+          </>
+        ) : (
+          <InterviewView 
+            candidates={evaluations.filter(ev => selectedCandidates.has(ev.name))}
+            questions={interviewQuestions}
+            onBack={() => setCurrentView('evaluation')}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+function InterviewView({ candidates, questions, onBack }: { 
+  candidates: CandidateEvaluation[], 
+  questions: Record<string, string[]>,
+  onBack: () => void 
+}) {
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+      <header className="px-8 py-6 bg-white border-b border-slate-200 flex justify-between items-center shrink-0">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={onBack}
+            className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600"
+          >
+            <ChevronRight className="w-6 h-6 rotate-180" />
+          </button>
+          <div className="space-y-0.5">
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+              <Users className="w-4 h-4 text-blue-600" />
+              Siguiente Fase: Entrevista Técnica
+            </h2>
+            <p className="text-[10px] text-slate-400 font-medium">Deep-dive en los perfiles seleccionados</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 text-[10px] font-bold uppercase tracking-wider">
+            {candidates.length} Seleccionados
+          </span>
+        </div>
+      </header>
+
+      <div className="flex-1 overflow-y-auto p-8">
+        <div className="max-w-4xl mx-auto space-y-8">
+          {candidates.map((candidate, idx) => (
+            <motion.div 
+              key={candidate.name}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.1 }}
+              className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-start">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-bold text-xl">
+                    {candidate.name[0]}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800">{candidate.name}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs font-bold text-blue-600">Score: {candidate.score}/10</span>
+                      <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                      <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Recomendación: {candidate.recommendation}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                      <Star className="w-3 h-3 text-emerald-500" />
+                      Fortalezas Destacadas
+                    </h4>
+                    <p className="text-xs text-slate-600 leading-relaxed bg-emerald-50/30 p-4 rounded-xl border border-emerald-50">
+                      {candidate.strengths}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                      <AlertCircle className="w-3 h-3 text-rose-500" />
+                      Brechas a Validar
+                    </h4>
+                    <p className="text-xs text-slate-600 leading-relaxed bg-rose-50/30 p-4 rounded-xl border border-rose-50 italic">
+                      {candidate.gaps}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-xl shadow-slate-200 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+                    <Users className="w-16 h-16" />
+                  </div>
+                  <h4 className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                    <Search className="w-3 h-3" />
+                    Preguntas Sugeridas para Entrevista
+                  </h4>
+                  <div className="space-y-4">
+                    {questions[candidate.name]?.map((q, i) => (
+                      <div key={i} className="flex gap-3 items-start group">
+                        <span className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 group-hover:bg-blue-600 transition-colors">
+                          {i + 1}
+                        </span>
+                        <p className="text-xs font-medium leading-relaxed opacity-90">{q}</p>
+                      </div>
+                    ))}
+                    {!questions[candidate.name] && (
+                      <div className="flex items-center gap-3 text-slate-500 italic py-4">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span className="text-[10px]">Generando preguntas estratégicas...</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditableField({ label, value, onChange, placeholder }: { 
+  label: string, 
+  value: string, 
+  onChange: (v: string) => void,
+  placeholder: string 
+}) {
+  return (
+    <div className="bg-white p-3 rounded border border-slate-200 shadow-sm transition-all focus-within:border-blue-400 group">
+      <p className="text-[9px] text-blue-600 font-bold uppercase tracking-wider mb-1.5">{label}</p>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={3}
+        className="w-full text-[11px] text-slate-700 leading-snug font-medium p-0 bg-transparent border-none focus:outline-none resize-none placeholder:text-slate-300"
+      />
+    </div>
+  );
+}
