@@ -88,8 +88,9 @@ export default function App() {
     }
   };
 
-  const updateCriteriaField = (field: keyof JDCriteria, value: string) => {
-    setCriteria(prev => ({ ...prev, [field]: value }));
+  const handleClearCriteria = () => {
+    setCriteria({ experience: '', skills: '', education: '', achievements: '' });
+    setHasExtracted(false);
   };
 
   const toggleCandidateSelection = (name: string) => {
@@ -286,13 +287,12 @@ export default function App() {
                     <CheckCircle className="w-3 h-3" /> EXTRAÍDO
                   </span>
                   <button
-                    onClick={handleExtractJD}
-                    disabled={isExtractingJD}
-                    title="Re-analizar descripción del cargo"
-                    className="flex items-center gap-1 px-2 py-1 text-[9px] font-bold text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-all border border-slate-200 hover:border-blue-200"
+                    onClick={handleClearCriteria}
+                    title="Limpiar criterios extraídos"
+                    className="flex items-center gap-1 px-2 py-1 text-[9px] font-bold text-slate-500 hover:text-red-500 hover:bg-red-50 rounded transition-all border border-slate-200 hover:border-red-200"
                   >
-                    <RefreshCw className={cn("w-2.5 h-2.5", isExtractingJD && "animate-spin")} />
-                    Re-analizar
+                    <X className="w-2.5 h-2.5" />
+                    Limpiar
                   </button>
                 </div>
               )}
@@ -305,31 +305,21 @@ export default function App() {
               </div>
             )}
             
-            <div className="grid grid-cols-1 gap-4">
-              <EditableField 
-                label="Experiencia Requerida" 
-                value={criteria.experience} 
-                onChange={(v) => updateCriteriaField('experience', v)}
-                placeholder="Años, áreas específicas..."
-              />
-              <EditableField 
-                label="Habilidades Técnicas" 
-                value={criteria.skills} 
-                onChange={(v) => updateCriteriaField('skills', v)}
-                placeholder="Softwares, lenguajes, herramientas..."
-              />
-              <EditableField 
-                label="Formación Académica" 
-                value={criteria.education} 
-                onChange={(v) => updateCriteriaField('education', v)}
-                placeholder="Títulos, certificaciones..."
-              />
-              <EditableField 
-                label="Logros o Competencias" 
-                value={criteria.achievements} 
-                onChange={(v) => updateCriteriaField('achievements', v)}
-                placeholder="Resultados esperados, soft skills..."
-              />
+            <div className="grid grid-cols-1 gap-3">
+              {[
+                { label: 'Experiencia Requerida', value: criteria.experience },
+                { label: 'Habilidades Técnicas',  value: criteria.skills },
+                { label: 'Formación Académica',   value: criteria.education },
+                { label: 'Logros o Competencias', value: criteria.achievements },
+              ].map(({ label, value }) => (
+                <div key={label} className="bg-white p-3 rounded border border-slate-200 shadow-sm">
+                  <p className="text-[9px] text-blue-600 font-bold uppercase tracking-wider mb-1.5">{label}</p>
+                  {value
+                    ? <p className="text-[11px] text-slate-700 leading-snug font-medium whitespace-pre-wrap">{value}</p>
+                    : <p className="text-[11px] text-slate-300 italic">No especificado en la descripción.</p>
+                  }
+                </div>
+              ))}
             </div>
 
             {!hasExtracted && !isExtractingJD && (
@@ -855,22 +845,3 @@ function InterviewView({ candidates, questions, jobTitle, onBack }: {
   );
 }
 
-function EditableField({ label, value, onChange, placeholder }: { 
-  label: string, 
-  value: string, 
-  onChange: (v: string) => void,
-  placeholder: string 
-}) {
-  return (
-    <div className="bg-white p-3 rounded border border-slate-200 shadow-sm transition-all focus-within:border-blue-400 group">
-      <p className="text-[9px] text-blue-600 font-bold uppercase tracking-wider mb-1.5">{label}</p>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={3}
-        className="w-full text-[11px] text-slate-700 leading-snug font-medium p-0 bg-transparent border-none focus:outline-none resize-none placeholder:text-slate-300"
-      />
-    </div>
-  );
-}
