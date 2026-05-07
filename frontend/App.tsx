@@ -6,20 +6,21 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  FileText, 
-  Upload, 
-  Search, 
-  CheckCircle, 
-  AlertCircle, 
-  X, 
-  Loader2, 
+  FileText,
+  Upload,
+  Search,
+  CheckCircle,
+  AlertCircle,
+  X,
+  Loader2,
   ChevronRight,
   TrendingUp,
   Award,
   BookOpen,
   Briefcase,
   Users,
-  Star
+  Star,
+  RefreshCw
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -65,6 +66,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<'evaluation' | 'interview'>('evaluation');
   const [interviewQuestions, setInterviewQuestions] = useState<Record<string, string[]>>({});
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
 
   // Handlers
   const handleExtractJD = async () => {
@@ -191,6 +193,7 @@ export default function App() {
     try {
       const summary = await generateExecutiveSummary(evaluations);
       setExecutiveSummary(summary);
+      setShowSummaryModal(true);
     } catch (err: any) {
       setError('Error al generar resumen ejecutivo.');
     } finally {
@@ -277,11 +280,29 @@ export default function App() {
             <div className="flex items-center justify-between">
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Criterios del Cargo</label>
               {hasExtracted && (
-                <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 animate-pulse">
-                  <CheckCircle className="w-3 h-3" /> EXTRAÍDO
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600">
+                    <CheckCircle className="w-3 h-3" /> EXTRAÍDO
+                  </span>
+                  <button
+                    onClick={handleExtractJD}
+                    disabled={isExtractingJD}
+                    title="Re-analizar descripción del cargo"
+                    className="flex items-center gap-1 px-2 py-1 text-[9px] font-bold text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-all border border-slate-200 hover:border-blue-200"
+                  >
+                    <RefreshCw className={cn("w-2.5 h-2.5", isExtractingJD && "animate-spin")} />
+                    Re-analizar
+                  </button>
+                </div>
               )}
             </div>
+
+            {hasExtracted && criteria.dataQuality && !criteria.dataQuality.toLowerCase().includes('suficiente') && (
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-amber-700 font-medium leading-relaxed">{criteria.dataQuality}</p>
+              </div>
+            )}
             
             <div className="grid grid-cols-1 gap-4">
               <EditableField 
@@ -391,43 +412,6 @@ export default function App() {
 
             {evaluations.length > 0 ? (
               <div className="flex flex-col p-6 gap-6">
-                {/* Executive Summary Section */}
-                <AnimatePresence>
-                  {executiveSummary && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="shrink-0"
-                    >
-                      <div className="p-6 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-2xl text-white shadow-xl shadow-blue-200/50 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none transition-transform group-hover:scale-110">
-                          <Award className="w-24 h-24" />
-                        </div>
-                        <div className="relative z-10">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                                <Star className="w-4 h-4 text-yellow-300 fill-yellow-300" />
-                              </div>
-                              <h3 className="text-[11px] font-bold uppercase tracking-[0.3em] text-blue-50">Reporte Estratégico AI</h3>
-                            </div>
-                            <button 
-                               onClick={() => setExecutiveSummary('')}
-                               className="text-white/50 hover:text-white transition-colors"
-                            >
-                               <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                          {/* Inner scroll container for summary if it gets too long */}
-                          <div className="max-h-[300px] overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-white/20 text-sm font-medium leading-relaxed prose prose-invert prose-sm max-w-none">
-                            <ReactMarkdown>{executiveSummary}</ReactMarkdown>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
                 {/* Table Section */}
                 <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
                   <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
@@ -557,6 +541,70 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Modal: Reporte Ejecutivo */}
+      <AnimatePresence>
+        {showSummaryModal && executiveSummary && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowSummaryModal(false); }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-700 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <Star className="w-4 h-4 text-yellow-300 fill-yellow-300" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white uppercase tracking-widest">Reporte Estratégico AI</h3>
+                    <p className="text-[10px] text-blue-200 mt-0.5">{evaluations.length} candidatos evaluados</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowSummaryModal(false)}
+                  className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed">
+                  <ReactMarkdown>{executiveSummary}</ReactMarkdown>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                <button
+                  onClick={generateSummary}
+                  disabled={isGeneratingSummary}
+                  className="flex items-center gap-2 text-[10px] font-bold text-slate-500 hover:text-blue-600 transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={cn("w-3 h-3", isGeneratingSummary && "animate-spin")} />
+                  Regenerar reporte
+                </button>
+                <button
+                  onClick={() => setShowSummaryModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition-all"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
