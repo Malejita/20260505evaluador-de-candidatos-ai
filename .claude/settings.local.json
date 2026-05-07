@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git push *)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Maleja\\\\Documents\\\\Maria\\\\Clase\\\\Andes Agentes\\\\Version 20260505\\\\evaluador-de-candidatos-ai\" -Force | Where-Object { $_.Name -ne 'node_modules' -and $_.Name -ne '.git' } | Sort-Object Name | Format-Table -AutoSize -Property Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}})",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Maleja\\\\Documents\\\\Maria\\\\Clase\\\\Andes Agentes\\\\Version 20260505\\\\evaluador-de-candidatos-ai\\\\src\" -Recurse | Sort-Object FullName | Format-Table -AutoSize -Property @{Name=\"Path\"; Expression={$_.FullName -replace [regex]::Escape\\(\"c:\\\\Users\\\\Maleja\\\\Documents\\\\Maria\\\\Clase\\\\Andes Agentes\\\\Version 20260505\\\\evaluador-de-candidatos-ai\\\\\"\\), \"\"}}, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}})",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Maleja\\\\Documents\\\\Maria\\\\Clase\\\\Andes Agentes\\\\Version 20260505\\\\evaluador-de-candidatos-ai\\\\server\" -Recurse | Sort-Object FullName | Format-Table -AutoSize -Property @{Name=\"Path\"; Expression={$_.FullName -replace [regex]::Escape\\(\"c:\\\\Users\\\\Maleja\\\\Documents\\\\Maria\\\\Clase\\\\Andes Agentes\\\\Version 20260505\\\\evaluador-de-candidatos-ai\\\\\"\\), \"\"}}, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}})",
+      "Bash(timeout 8 npx tsx backend/index.ts)",
+      "Bash(npx tsx *)",
+      "Bash(curl -s -X POST http://localhost:3001/api/extract-criteria -H \"Content-Type: application/json\" -d \"{\\\\\"jobDescription\\\\\": \\\\\"Analista de datos con experiencia en SQL y Python\\\\\"}\")",
+      "Bash(kill %1)"
+    ]
+  }
+}

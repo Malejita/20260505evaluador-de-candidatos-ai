@@ -157,7 +157,7 @@ export default function App() {
       for (const file of newFiles) {
         try {
           const text = await parseFile(file);
-          const evaluation = await evaluateCandidate(text, criteria, jobTitle);
+          const evaluation = await evaluateCandidate(text, criteria, jobTitle, evaluations.length + newFiles.length);
           newEvaluations.push(evaluation);
           newlyProcessedNames.add(file.name);
         } catch (fileErr: any) {

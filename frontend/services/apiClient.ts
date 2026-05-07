@@ -8,6 +8,7 @@ export interface JDCriteria {
   skills: string;
   education: string;
   achievements: string;
+  dataQuality?: string;
 }
 
 export interface CandidateEvaluation {
@@ -17,6 +18,7 @@ export interface CandidateEvaluation {
   strengths: string;
   gaps: string;
   recommendation: 'Avanzar' | 'Considerar' | 'Descartar';
+  selfEvaluation: string;
 }
 
 async function post<T>(endpoint: string, body: unknown): Promise<T> {
@@ -39,9 +41,10 @@ export async function extractCriteriaFromJD(jdText: string): Promise<JDCriteria>
 export async function evaluateCandidate(
   cvText: string,
   criteria: JDCriteria,
-  jobTitle: string
+  jobTitle: string,
+  totalCandidates: number = 1
 ): Promise<CandidateEvaluation> {
-  return post<CandidateEvaluation>('/api/evaluate-candidate', { cvText, criteria, jobTitle });
+  return post<CandidateEvaluation>('/api/evaluate-candidate', { cvText, criteria, jobTitle, totalCandidates });
 }
 
 export async function generateExecutiveSummary(evaluations: CandidateEvaluation[]): Promise<string> {
