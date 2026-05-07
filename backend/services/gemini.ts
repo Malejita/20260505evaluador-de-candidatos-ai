@@ -212,39 +212,77 @@ ${JSON.stringify(top3)}`,
 
 // ─── 4. Preguntas de entrevista ───────────────────────────────────────────────
 
+export interface InterviewCategory {
+  name: string;
+  label: string;
+  questions: string[];
+}
+
 export async function generateInterviewQuestions(
   candidate: CandidateEvaluation,
   jobDescription: string
-): Promise<{ questions: string[] }> {
+): Promise<{ categories: InterviewCategory[] }> {
   const response = await ai.models.generateContent({
     model: MODEL,
-    contents: `Eres un entrevistador experto. Diseña exactamente 3 preguntas de entrevista para ${candidate.name}, candidato al cargo descrito a continuación.
-
-TIPO DE PREGUNTA POR NÚMERO:
-1. [TÉCNICA]: valida una habilidad específica del cargo que el CV no demostró claramente.
-2. [COMPORTAMENTAL]: explora cómo manejó una situación real relevante al cargo. Usa el formato STAR implícito (Situación, Tarea, Acción, Resultado).
-3. [BRECHA]: profundiza directamente en la brecha más crítica de este candidato.
+    contents: `Eres un entrevistador experto en selección de personal con 15 años de experiencia. Tu tarea es diseñar entre 8 y 12 preguntas de entrevista personalizadas para ${candidate.name}, candidato al cargo descrito a continuación.
 
 PERFIL DEL CANDIDATO:
 - Score obtenido: ${candidate.score}/10
 - Fortalezas identificadas: ${candidate.strengths}
-- Brecha crítica: ${candidate.gaps}
+- Brechas críticas: ${candidate.gaps}
 
 DESCRIPCIÓN DEL CARGO:
 ${jobDescription}
 
-Redacta cada pregunta en segunda persona ("¿Cómo harías...?", "Cuéntame sobre..."). Sé específico al cargo — evita preguntas genéricas. Incluye el tipo como prefijo: "[TÉCNICA]", "[COMPORTAMENTAL]", "[BRECHA]".`,
+CATEGORÍAS Y REGLAS (sigue estas instrucciones para cada categoría):
+
+[FORTALEZA] — nombre interno: "FORTALEZA", etiqueta: "Profundizar Fortalezas" — entre 2 y 3 preguntas
+Diseña preguntas que profundicen en las fortalezas del candidato con ejemplos concretos de situaciones reales.
+- Usa el formato STAR implícito (Situación, Tarea, Acción, Resultado).
+- Pide un momento específico y real: "Cuéntame de una vez en que..." o "Descríbeme una situación donde..."
+- El ejemplo debe estar relacionado directamente con las responsabilidades del cargo.
+
+[BRECHA] — nombre interno: "BRECHA", etiqueta: "Explorar Posibles Brechas" — entre 2 y 3 preguntas
+Diseña preguntas que exploren si el candidato tiene conocimiento o experiencia no mencionada en su CV que pueda compensar las brechas.
+- No asumas que la brecha es insalvable — indaga si hay experiencia no documentada.
+- Ejemplo: "¿Has tenido algún acercamiento a [área/herramienta] fuera de tus roles formales?" o "¿Cómo abordarías [situación relacionada con la brecha] dado que no tienes experiencia documentada en ese ámbito?"
+
+[MOTIVACIÓN] — nombre interno: "MOTIVACIÓN", etiqueta: "Motivación para el Cargo" — entre 1 y 2 preguntas
+Indaga la motivación genuina del candidato para este cargo específico.
+- Una pregunta debe explorar por qué este cargo en particular y no otro similar.
+- La otra puede indagar qué espera aportar o lograr en los primeros 6 meses.
+
+[SITUACIONAL] — nombre interno: "SITUACIONAL", etiqueta: "Situaciones del Cargo" — entre 2 y 3 preguntas
+Plantea situaciones concretas relacionadas con los retos reales del cargo.
+- Usa el formato "Imagina que..." o "Si te encontraras con..." seguido de un escenario específico.
+- El escenario debe basarse en los desafíos descritos en la descripción del cargo.
+
+REGLAS DE REDACCIÓN:
+- Todas las preguntas en segunda persona ("¿Cómo harías...?", "Cuéntame sobre...", "¿Puedes describir...?").
+- Específicas al cargo y al perfil — evita preguntas genéricas que sirvan para cualquier rol.
+- Total: entre 8 y 12 preguntas distribuidas entre las 4 categorías.`,
     config: {
       responseMimeType: 'application/json',
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          questions: { type: Type.ARRAY, items: { type: Type.STRING } },
+          categories: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name:      { type: Type.STRING, description: 'FORTALEZA, BRECHA, MOTIVACIÓN o SITUACIONAL' },
+                label:     { type: Type.STRING, description: 'Etiqueta legible para el reclutador' },
+                questions: { type: Type.ARRAY, items: { type: Type.STRING } },
+              },
+              required: ['name', 'label', 'questions'],
+            },
+          },
         },
-        required: ['questions'],
+        required: ['categories'],
       },
     },
   });
-  const data = JSON.parse(response.text || '{"questions":[]}');
-  return { questions: data.questions || [] };
+  const data = JSON.parse(response.text || '{"categories":[]}');
+  return { categories: data.categories || [] };
 }

@@ -27,13 +27,14 @@ import { twMerge } from 'tailwind-merge';
 import ReactMarkdown from 'react-markdown';
 
 import { parseFile } from './lib/fileParser';
-import { 
-  extractCriteriaFromJD, 
-  evaluateCandidate, 
+import {
+  extractCriteriaFromJD,
+  evaluateCandidate,
   generateExecutiveSummary,
   generateInterviewQuestions,
-  type JDCriteria, 
-  type CandidateEvaluation 
+  type JDCriteria,
+  type CandidateEvaluation,
+  type InterviewCategory,
 } from './services/apiClient';
 
 function cn(...inputs: ClassValue[]) {
@@ -64,7 +65,7 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [currentView, setCurrentView] = useState<'evaluation' | 'interview'>('evaluation');
-  const [interviewQuestions, setInterviewQuestions] = useState<Record<string, string[]>>({});
+  const [interviewQuestions, setInterviewQuestions] = useState<Record<string, InterviewCategory[]>>({});
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
 
@@ -111,7 +112,7 @@ export default function App() {
     setError(null);
     try {
       const selectedEvals = evaluations.filter(ev => selectedCandidates.has(ev.name));
-      const questionsMap: Record<string, string[]> = { ...interviewQuestions };
+      const questionsMap: Record<string, InterviewCategory[]> = { ...interviewQuestions };
       
       for (const candidate of selectedEvals) {
         if (!questionsMap[candidate.name]) {
@@ -502,7 +503,7 @@ export default function App() {
                         ) : (
                           <ChevronRight className="w-5 h-5" />
                         )}
-                        Pasar a Siguiente Fase ({selectedCandidates.size})
+                        Siguiente fase: Entrevista ({selectedCandidates.size})
                       </button>
                     </div>
                   )}
@@ -609,16 +610,51 @@ export default function App() {
   );
 }
 
-function InterviewView({ candidates, questions, onBack }: { 
-  candidates: CandidateEvaluation[], 
-  questions: Record<string, string[]>,
-  onBack: () => void 
+const categoryStyles = {
+  FORTALEZA: {
+    headerColor: 'text-emerald-700',
+    bgColor: 'bg-emerald-50',
+    borderColor: 'border-emerald-100',
+    numBg: 'bg-emerald-100',
+    numText: 'text-emerald-700',
+    Icon: Star,
+  },
+  BRECHA: {
+    headerColor: 'text-amber-700',
+    bgColor: 'bg-amber-50',
+    borderColor: 'border-amber-100',
+    numBg: 'bg-amber-100',
+    numText: 'text-amber-700',
+    Icon: AlertCircle,
+  },
+  MOTIVACIÓN: {
+    headerColor: 'text-blue-700',
+    bgColor: 'bg-blue-50',
+    borderColor: 'border-blue-100',
+    numBg: 'bg-blue-100',
+    numText: 'text-blue-700',
+    Icon: TrendingUp,
+  },
+  SITUACIONAL: {
+    headerColor: 'text-violet-700',
+    bgColor: 'bg-violet-50',
+    borderColor: 'border-violet-100',
+    numBg: 'bg-violet-100',
+    numText: 'text-violet-700',
+    Icon: BookOpen,
+  },
+};
+
+function InterviewView({ candidates, questions, onBack }: {
+  candidates: CandidateEvaluation[],
+  questions: Record<string, InterviewCategory[]>,
+  onBack: () => void
 }) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
       <header className="px-8 py-6 bg-white border-b border-slate-200 flex justify-between items-center shrink-0">
         <div className="flex items-center gap-4">
-          <button 
+          <button
             onClick={onBack}
             className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600"
           >
@@ -627,91 +663,101 @@ function InterviewView({ candidates, questions, onBack }: {
           <div className="space-y-0.5">
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
               <Users className="w-4 h-4 text-blue-600" />
-              Siguiente Fase: Entrevista Técnica
+              Siguiente Fase: Entrevista
             </h2>
-            <p className="text-[10px] text-slate-400 font-medium">Deep-dive en los perfiles seleccionados</p>
+            <p className="text-[10px] text-slate-400 font-medium">Guía de preguntas personalizada por candidato</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 text-[10px] font-bold uppercase tracking-wider">
-            {candidates.length} Seleccionados
-          </span>
-        </div>
+        <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 text-[10px] font-bold uppercase tracking-wider">
+          {candidates.length} Seleccionados
+        </span>
       </header>
 
       <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-4xl mx-auto space-y-8">
           {candidates.map((candidate, idx) => (
-            <motion.div 
+            <motion.div
               key={candidate.name}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.1 }}
               className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden"
             >
-              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-start">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-bold text-xl">
-                    {candidate.name[0]}
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-800">{candidate.name}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs font-bold text-blue-600">Score: {candidate.score}/10</span>
-                      <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                      <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Recomendación: {candidate.recommendation}</span>
-                    </div>
+              {/* Encabezado del candidato */}
+              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-bold text-xl shrink-0">
+                  {candidate.name[0]}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">{candidate.name}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs font-bold text-blue-600">Score: {candidate.score}/10</span>
+                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Recomendación: {candidate.recommendation}</span>
                   </div>
                 </div>
               </div>
-              
-              <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-6">
-                  <div>
-                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                      <Star className="w-3 h-3 text-emerald-500" />
-                      Fortalezas Destacadas
-                    </h4>
-                    <p className="text-xs text-slate-600 leading-relaxed bg-emerald-50/30 p-4 rounded-xl border border-emerald-50">
-                      {candidate.strengths}
-                    </p>
-                  </div>
-                  <div>
-                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                      <AlertCircle className="w-3 h-3 text-rose-500" />
-                      Brechas a Validar
-                    </h4>
-                    <p className="text-xs text-slate-600 leading-relaxed bg-rose-50/30 p-4 rounded-xl border border-rose-50 italic">
-                      {candidate.gaps}
-                    </p>
-                  </div>
-                </div>
 
-                <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-xl shadow-slate-200 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
-                    <Users className="w-16 h-16" />
-                  </div>
-                  <h4 className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                    <Search className="w-3 h-3" />
-                    Preguntas Sugeridas para Entrevista
+              {/* Resumen del perfil */}
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-slate-100">
+                <div>
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <Star className="w-3 h-3 text-emerald-500" />
+                    Fortalezas Destacadas
                   </h4>
-                  <div className="space-y-4">
-                    {questions[candidate.name]?.map((q, i) => (
-                      <div key={i} className="flex gap-3 items-start group">
-                        <span className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 group-hover:bg-blue-600 transition-colors">
-                          {i + 1}
-                        </span>
-                        <p className="text-xs font-medium leading-relaxed opacity-90">{q}</p>
-                      </div>
-                    ))}
-                    {!questions[candidate.name] && (
-                      <div className="flex items-center gap-3 text-slate-500 italic py-4">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        <span className="text-[10px]">Generando preguntas estratégicas...</span>
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed bg-emerald-50/40 p-3 rounded-xl border border-emerald-50">
+                    {candidate.strengths}
+                  </p>
                 </div>
+                <div>
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <AlertCircle className="w-3 h-3 text-rose-500" />
+                    Brechas a Validar
+                  </h4>
+                  <p className="text-xs text-slate-600 leading-relaxed bg-rose-50/40 p-3 rounded-xl border border-rose-50 italic">
+                    {candidate.gaps}
+                  </p>
+                </div>
+              </div>
+
+              {/* Preguntas organizadas por categoría */}
+              <div className="p-6">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
+                  <Search className="w-3 h-3" />
+                  Guía de Preguntas para la Entrevista
+                </h4>
+
+                {questions[candidate.name] ? (
+                  <div className="space-y-6">
+                    {questions[candidate.name].map((category, catIdx) => {
+                      const style = categoryStyles[category.name as keyof typeof categoryStyles] || categoryStyles.SITUACIONAL;
+                      const Icon = style.Icon;
+                      return (
+                        <div key={catIdx}>
+                          <h5 className={`text-[10px] font-bold uppercase tracking-widest ${style.headerColor} flex items-center gap-2 mb-3`}>
+                            <Icon className="w-3 h-3" />
+                            {category.label}
+                          </h5>
+                          <div className="space-y-2">
+                            {category.questions.map((q, qIdx) => (
+                              <div key={qIdx} className={`flex gap-3 items-start p-3 ${style.bgColor} border ${style.borderColor} rounded-xl`}>
+                                <span className={`w-5 h-5 rounded-md ${style.numBg} ${style.numText} flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5`}>
+                                  {qIdx + 1}
+                                </span>
+                                <p className="text-xs text-slate-700 leading-relaxed">{q}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 text-slate-400 italic py-4">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span className="text-[10px]">Generando preguntas personalizadas...</span>
+                  </div>
+                )}
               </div>
             </motion.div>
           ))}

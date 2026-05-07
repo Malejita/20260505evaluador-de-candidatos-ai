@@ -52,10 +52,16 @@ export async function generateExecutiveSummary(evaluations: CandidateEvaluation[
   return data.summary;
 }
 
+export interface InterviewCategory {
+  name: string;
+  label: string;
+  questions: string[];
+}
+
 export async function generateInterviewQuestions(
   candidate: CandidateEvaluation,
   jobDescription: string
-): Promise<string[]> {
-  const data = await post<{ questions: string[] }>('/api/interview-questions', { candidate, jobDescription });
-  return data.questions;
+): Promise<InterviewCategory[]> {
+  const data = await post<{ categories: InterviewCategory[] }>('/api/interview-questions', { candidate, jobDescription });
+  return data.categories;
 }
