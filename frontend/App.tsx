@@ -270,7 +270,7 @@ export default function App() {
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
                 <>
-                  <span>Completar Criterios Siguiente Sección</span>
+                  <span>Criterios por sección</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </>
               )}
@@ -286,6 +286,16 @@ export default function App() {
                   <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600">
                     <CheckCircle className="w-3 h-3" /> EXTRAÍDO
                   </span>
+                  {criteria.profileScore != null && (
+                    <span className={cn(
+                      "text-[9px] font-bold px-1.5 py-0.5 rounded-full",
+                      criteria.profileScore >= 7 ? "bg-emerald-100 text-emerald-700" :
+                      criteria.profileScore >= 5 ? "bg-amber-100 text-amber-700" :
+                      "bg-red-100 text-red-600"
+                    )}>
+                      Calidad {criteria.profileScore}/10
+                    </span>
+                  )}
                   <button
                     onClick={handleClearCriteria}
                     title="Limpiar criterios extraídos"
@@ -316,7 +326,7 @@ export default function App() {
                   <p className="text-[9px] text-blue-600 font-bold uppercase tracking-wider mb-1.5">{label}</p>
                   {value
                     ? <p className="text-[11px] text-slate-700 leading-snug font-medium whitespace-pre-wrap">{value}</p>
-                    : <p className="text-[11px] text-slate-300 italic">No especificado en la descripción.</p>
+                    : <p className="text-[11px] text-red-400 font-semibold italic">⚠ No especificado en la descripción.</p>
                   }
                 </div>
               ))}

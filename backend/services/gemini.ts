@@ -11,7 +11,8 @@ export interface JDCriteria {
   skills: string;
   education: string;
   achievements: string;
-  dataQuality?: string; // Mejora 1.1: avisa si la descripción del cargo es insuficiente
+  dataQuality?: string;
+  profileScore?: number;
 }
 
 export interface CandidateEvaluation {
@@ -47,6 +48,12 @@ Revisa si la descripción tiene suficiente información para extraer criterios c
 - Si es muy corta (menos de 50 palabras) o le faltan secciones clave, escribe en "dataQuality" exactamente qué información faltó y qué debería agregar el reclutador.
 - Si es completa y clara, escribe: "Descripción suficiente para evaluación."
 
+Además asigna un puntaje "profileScore" de 1 a 10 según la calidad general de la descripción:
+- 1-3: Descripción muy incompleta, falta información esencial para evaluar candidatos.
+- 4-6: Descripción parcial, algunas secciones bien definidas y otras vagas o ausentes.
+- 7-8: Descripción completa con la mayoría de la información necesaria.
+- 9-10: Descripción detallada y específica en todos los criterios clave.
+
 PASO 2 — EXTRAE LOS 4 CRITERIOS (solo con lo que está escrito):
 - Experiencia requerida: años, tipo de rol, industria — solo si están explícitos.
 - Habilidades técnicas: herramientas, tecnologías, metodologías — solo las mencionadas.
@@ -67,8 +74,9 @@ ${jobDescription}`,
           education:    { type: Type.STRING, description: 'Formación académica' },
           achievements: { type: Type.STRING, description: 'Logros o competencias esperadas' },
           dataQuality:  { type: Type.STRING, description: 'Evaluación de la calidad de la descripción del cargo' },
+          profileScore: { type: Type.NUMBER, description: 'Puntaje de calidad de la descripción del cargo, de 1 a 10' },
         },
-        required: ['experience', 'skills', 'education', 'achievements', 'dataQuality'],
+        required: ['experience', 'skills', 'education', 'achievements', 'dataQuality', 'profileScore'],
       },
     },
   });

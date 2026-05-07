@@ -9,6 +9,7 @@ export interface JDCriteria {
   education: string;
   achievements: string;
   dataQuality?: string;
+  profileScore?: number;
 }
 
 export interface CandidateEvaluation {
