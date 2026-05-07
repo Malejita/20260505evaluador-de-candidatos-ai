@@ -535,9 +535,10 @@ export default function App() {
         </section>
           </>
         ) : (
-          <InterviewView 
+          <InterviewView
             candidates={evaluations.filter(ev => selectedCandidates.has(ev.name))}
             questions={interviewQuestions}
+            jobTitle={jobTitle}
             onBack={() => setCurrentView('evaluation')}
           />
         )}
@@ -645,11 +646,69 @@ const categoryStyles = {
   },
 };
 
-function InterviewView({ candidates, questions, onBack }: {
+function buildInterviewText(
+  candidate: CandidateEvaluation,
+  categories: InterviewCategory[],
+  jobTitle: string
+): string {
+  const date = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const sep = '─'.repeat(52);
+  const lines: string[] = [
+    'GUÍA DE ENTREVISTA',
+    `Candidato : ${candidate.name}`,
+    jobTitle ? `Cargo     : ${jobTitle}` : '',
+    `Score     : ${candidate.score}/10  |  Recomendación: ${candidate.recommendation}`,
+    `Fecha     : ${date}`,
+    '',
+    sep,
+    '',
+    'FORTALEZAS DESTACADAS',
+    candidate.strengths,
+    '',
+    'BRECHAS A VALIDAR',
+    candidate.gaps,
+    '',
+    sep,
+    '',
+  ];
+  for (const cat of categories) {
+    lines.push(cat.label.toUpperCase());
+    cat.questions.forEach((q, i) => lines.push(`${i + 1}. ${q}`));
+    lines.push('');
+  }
+  return lines.filter(l => l !== undefined).join('\n').trim();
+}
+
+function InterviewView({ candidates, questions, jobTitle, onBack }: {
   candidates: CandidateEvaluation[],
   questions: Record<string, InterviewCategory[]>,
+  jobTitle: string,
   onBack: () => void
 }) {
+  const [copiedFor, setCopiedFor] = useState<string | null>(null);
+
+  const handleCopy = async (candidate: CandidateEvaluation) => {
+    const cats = questions[candidate.name];
+    if (!cats) return;
+    await navigator.clipboard.writeText(buildInterviewText(candidate, cats, jobTitle));
+    setCopiedFor(candidate.name);
+    setTimeout(() => setCopiedFor(null), 2000);
+  };
+
+  const handleDownload = (candidate: CandidateEvaluation) => {
+    const cats = questions[candidate.name];
+    if (!cats) return;
+    const text = buildInterviewText(candidate, cats, jobTitle);
+    const date = new Date().toISOString().split('T')[0];
+    const safeName = candidate.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Entrevista_${safeName}_${date}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
       <header className="px-8 py-6 bg-white border-b border-slate-200 flex justify-between items-center shrink-0">
@@ -756,6 +815,35 @@ function InterviewView({ candidates, questions, onBack }: {
                   <div className="flex items-center gap-3 text-slate-400 italic py-4">
                     <Loader2 className="w-3 h-3 animate-spin" />
                     <span className="text-[10px]">Generando preguntas personalizadas...</span>
+                  </div>
+                )}
+
+                {/* Botones de exportación */}
+                {questions[candidate.name] && (
+                  <div className="flex items-center gap-3 mt-6 pt-5 border-t border-slate-100">
+                    <button
+                      onClick={() => handleCopy(candidate)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                    >
+                      {copiedFor === candidate.name ? (
+                        <>
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                          <span className="text-emerald-600">¡Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="w-3.5 h-3.5" />
+                          Copiar preguntas
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleDownload(candidate)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                    >
+                      <Award className="w-3.5 h-3.5" />
+                      Descargar .txt
+                    </button>
                   </div>
                 )}
               </div>
