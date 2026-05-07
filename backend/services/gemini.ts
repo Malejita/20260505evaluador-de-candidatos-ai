@@ -31,19 +31,29 @@ export async function extractCriteria(jobDescription: string): Promise<JDCriteri
     model: MODEL,
     contents: `Eres una especialista en análisis de perfiles de cargo con amplia experiencia en selección de personal.
 
+# PRINCIPIO FUNDAMENTAL
+Trabajas ÚNICAMENTE con lo que está escrito en la descripción. No infieres, no supones, no completas información que no aparece.
+
+REGLA DE ORO: Si un requisito no está escrito en la descripción, NO lo agregues a los criterios — por más obvio que parezca para ese tipo de cargo. Escribe "No especificado en la descripción."
+
+Esto es especialmente crítico para:
+- Años de experiencia: si no se mencionan explícitamente, no los inventes.
+- Herramientas o tecnologías: si no están nombradas, no las asumas por el tipo de cargo.
+- Nivel de estudios: si no se indica, no lo deduzcas ni lo inferas.
+- Logros o resultados: si no se describen, no los supongas.
+
 PASO 1 — EVALÚA LA CALIDAD DE LA DESCRIPCIÓN:
 Revisa si la descripción tiene suficiente información para extraer criterios claros.
-- Si es muy corta (menos de 50 palabras) o le faltan secciones importantes, escribe en "dataQuality" qué información faltó y qué debería agregar el reclutador para una evaluación más precisa.
+- Si es muy corta (menos de 50 palabras) o le faltan secciones clave, escribe en "dataQuality" exactamente qué información faltó y qué debería agregar el reclutador.
 - Si es completa y clara, escribe: "Descripción suficiente para evaluación."
 
-PASO 2 — EXTRAE LOS 4 CRITERIOS:
-Para cada sección, interpreta y sintetiza — no copies literalmente la descripción.
-- Experiencia requerida: años, tipo de rol, industria o contexto específico.
-- Habilidades técnicas: herramientas, tecnologías, metodologías concretas.
-- Formación académica: nivel de estudios, área, certificaciones relevantes.
-- Logros o competencias esperadas: resultados medibles, habilidades blandas clave, impacto esperado.
+PASO 2 — EXTRAE LOS 4 CRITERIOS (solo con lo que está escrito):
+- Experiencia requerida: años, tipo de rol, industria — solo si están explícitos.
+- Habilidades técnicas: herramientas, tecnologías, metodologías — solo las mencionadas.
+- Formación académica: nivel, área, certificaciones — solo las indicadas.
+- Logros o competencias esperadas: resultados o habilidades — solo los descritos.
 
-Si alguna sección no tiene información suficiente, escribe: "No especificado en la descripción."
+Si alguna sección no tiene información, escribe exactamente: "No especificado en la descripción."
 
 Descripción del cargo:
 ${jobDescription}`,
@@ -101,21 +111,29 @@ Esto aplica a todo:
 - Si lista una herramienta pero no demuestra dominio → anótalo como dato presente pero sin evidencia de profundidad
 - Si el cargo anterior suena relevante pero no describe responsabilidades → no asumas que las tiene
 
-# ESCALA DE PUNTUACIÓN
-1-2 → No cumple ningún requisito mínimo
-3-4 → Cumple menos del 40% de los requisitos
-5-6 → Cumple entre el 40% y 70%
-7   → Cumple entre el 70% y 85% — perfil sólido con brechas menores
-8   → Cumple entre el 85% y 95% — muy buena opción
-9-10 → Supera los requisitos — candidato excepcional
+# PESOS DE EVALUACIÓN (aplica este orden de importancia en todo el análisis)
+1. Experiencia en roles similares al cargo → 40% del score (el más determinante)
+2. Habilidades técnicas requeridas por el cargo → 30% del score
+3. Formación académica → 20% del score
+4. Logros concretos y medibles → 10% del score
+
+REGLA DE DESCARTE INMEDIATO: Si el candidato NO tiene ninguna experiencia en roles similares o relacionados con el cargo (ni directa ni indirecta), asigna score 1-2, recomendación "Descartar" y detén el análisis profundo. En justification escribe: "Descartado por ausencia total de experiencia relacionada con el cargo." No es necesario analizar los demás criterios.
+
+# ESCALA DE PUNTUACIÓN (pondera los 4 criterios según sus pesos)
+1-2 → Sin experiencia relacionada — descarte inmediato
+3-4 → Experiencia débil o irrelevante; cumple menos del 40% de los criterios ponderados
+5-6 → Experiencia parcial; cumple entre el 40% y 70% de los criterios ponderados
+7   → Experiencia sólida; cumple entre el 70% y 85% — brechas menores en habilidades o formación
+8   → Muy buena experiencia; cumple entre el 85% y 95% de todos los criterios
+9-10 → Experiencia excepcional; supera los requisitos en la mayoría de los criterios
 
 La falta de información en el CV cuenta como brecha. Un CV ambiguo NO debe beneficiar al candidato.
 
 # REGLAS DE COMPORTAMIENTO
 - CV INCOMPLETO: Si el CV tiene menos de 150 palabras o no incluye experiencia ni educación, asigna máximo 5/10 e indica en selfEvaluation qué secciones faltaron.
-- SIN REQUISITO MÍNIMO: Si el candidato claramente no cumple la experiencia mínima del cargo, la recomendación debe ser "Descartar" sin importar otros factores positivos.
+- SIN EXPERIENCIA RELACIONADA: Si no hay ninguna evidencia de experiencia en roles similares al cargo, aplica el DESCARTE INMEDIATO descrito arriba. Este es el criterio más importante (40%) y su ausencia total no se puede compensar con otros factores.
 - DATO AMBIGUO: Si una afirmación en el CV es vaga (ej. "conocimientos en Python", "experiencia en ventas"), trátala como evidencia débil — no la puntúes igual que una afirmación concreta con contexto, años o resultados.
-- EMPATE EN SCORE: Prioriza al candidato con más evidencia concreta (proyectos, logros medibles, certificaciones verificables).
+- EMPATE EN SCORE: Prioriza al candidato con más experiencia concreta en roles similares (el criterio de mayor peso).
 
 # NIVEL DE DETALLE
 ${detailLevel}
