@@ -58,19 +58,27 @@ async function parsePDF(file: File): Promise<string> {
     }
 
     if (!fullText.trim()) {
-      throw new Error('El PDF parece estar vacío o es una imagen (escaneado). Solo se admite PDF con texto seleccionable.');
+      if (pdf.numPages > 0) {
+        throw new Error(
+          `Este PDF contiene solo imágenes escaneadas, no texto legible. ` +
+          `No es posible evaluarlo automáticamente. ` +
+          `Por favor pídele al candidato que envíe su CV en formato digital ` +
+          `(Word .docx o PDF generado desde computador — no fotografiado ni escaneado).`
+        );
+      }
+      throw new Error(`El archivo está vacío.`);
     }
 
     return fullText;
   } catch (error: any) {
     console.error('Error específico en PDF:', error);
     if (error.name === 'PasswordException') {
-      throw new Error('El archivo PDF está protegido con contraseña.');
+      throw new Error(`Este PDF está protegido con contraseña. Pídele al candidato que envíe una versión sin protección.`);
     }
     if (error.message?.includes('worker') || error.message?.includes('Worker')) {
-      throw new Error('Error al configurar el motor de lectura de PDF (Worker).');
+      throw new Error('Error al configurar el motor de lectura de PDF. Intenta de nuevo o usa formato .docx.');
     }
-    throw new Error('No se pudo extraer el texto del PDF. Asegúrese de que el archivo no sea una imagen escaneada o esté dañado.');
+    throw new Error(error.message || `No se pudo leer "${file.name}". Verifica que el archivo no esté dañado.`);
   }
 }
 
