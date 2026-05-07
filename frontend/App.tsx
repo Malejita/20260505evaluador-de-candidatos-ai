@@ -68,6 +68,7 @@ export default function App() {
   const [interviewQuestions, setInterviewQuestions] = useState<Record<string, InterviewCategory[]>>({});
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [openCriteria, setOpenCriteria] = useState<Set<string>>(new Set());
 
   // Handlers
   const handleExtractJD = async () => {
@@ -91,6 +92,16 @@ export default function App() {
   const handleClearCriteria = () => {
     setCriteria({ experience: '', skills: '', education: '', achievements: '' });
     setHasExtracted(false);
+    setOpenCriteria(new Set());
+  };
+
+  const toggleCriterion = (label: string) => {
+    setOpenCriteria(prev => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
   };
 
   const toggleCandidateSelection = (name: string) => {
@@ -315,21 +326,34 @@ export default function App() {
               </div>
             )}
             
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-2">
               {[
                 { label: 'Experiencia Requerida', value: criteria.experience },
                 { label: 'Habilidades Técnicas',  value: criteria.skills },
                 { label: 'Formación Académica',   value: criteria.education },
                 { label: 'Logros o Competencias', value: criteria.achievements },
-              ].map(({ label, value }) => (
-                <div key={label} className="bg-white p-3 rounded border border-slate-200 shadow-sm">
-                  <p className="text-[9px] text-blue-600 font-bold uppercase tracking-wider mb-1.5">{label}</p>
-                  {value
-                    ? <p className="text-[11px] text-slate-700 leading-snug font-medium whitespace-pre-wrap">{value}</p>
-                    : <p className="text-[11px] text-red-400 font-semibold italic">⚠ No especificado en la descripción.</p>
-                  }
-                </div>
-              ))}
+              ].map(({ label, value }) => {
+                const isOpen = openCriteria.has(label);
+                return (
+                  <div key={label} className="bg-white rounded border border-slate-200 shadow-sm overflow-hidden">
+                    <button
+                      onClick={() => toggleCriterion(label)}
+                      className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-slate-50 transition-colors"
+                    >
+                      <p className="text-[9px] text-blue-600 font-bold uppercase tracking-wider">{label}</p>
+                      <ChevronRight className={cn("w-3 h-3 text-slate-400 transition-transform shrink-0", isOpen && "rotate-90")} />
+                    </button>
+                    {isOpen && (
+                      <div className="px-3 pb-3 border-t border-slate-100">
+                        {value
+                          ? <p className="text-[11px] text-slate-700 leading-snug font-medium whitespace-pre-wrap pt-2">{value}</p>
+                          : <p className="text-[11px] text-red-400 font-semibold italic pt-2">⚠ No especificado en la descripción.</p>
+                        }
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {!hasExtracted && !isExtractingJD && (
