@@ -33,7 +33,7 @@ import {
   generateInterviewQuestions,
   type JDCriteria, 
   type CandidateEvaluation 
-} from './services/geminiService';
+} from './services/apiClient';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
